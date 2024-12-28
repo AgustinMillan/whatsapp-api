@@ -6,6 +6,9 @@ const port = 3000;
 
 const client = new Client({
   authStrategy: new LocalAuth(),
+  puppeteer: {
+    headless: false,
+  },
 });
 
 client.on("qr", (qr) => {
