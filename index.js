@@ -1,40 +1,49 @@
-const { Client, LocalAuth } = require("whatsapp-web.js");
+const makeWASocket = require("@whiskeysockets/baileys").default;
+const { useMultiFileAuthState } = require("@whiskeysockets/baileys");
 const express = require("express");
-const qrcode = require("qrcode-terminal");
 const app = express();
 const port = 3000;
 
-const client = new Client({
-  authStrategy: new LocalAuth(),
-});
+let sock;
 
-client.on("qr", (qr) => {
-  qrcode.generate(qr, { small: true });
-  console.log("QR recibido, escanéalo con tu teléfono.");
-});
+const connectToWhatsApp = async () => {
+  const { state, saveCreds } = await useMultiFileAuthState("./auth_info");
 
-client.on("ready", () => {
-  console.log("¡Cliente está listo!");
-});
+  sock = makeWASocket({
+    auth: state,
+    printQRInTerminal: true,
+  });
 
-client.initialize();
+  sock.ev.on("creds.update", saveCreds);
+
+  sock.ev.on("connection.update", (update) => {
+    const { connection, lastDisconnect } = update;
+    if (connection === "close") {
+      const shouldReconnect = lastDisconnect.error?.output?.statusCode !== 401;
+      if (shouldReconnect) connectToWhatsApp();
+    } else if (connection === "open") {
+      console.log("Conectado a WhatsApp!");
+    }
+  });
+};
+
+connectToWhatsApp();
 
 app.use(express.json());
 
 app.post("/send", async (req, res) => {
   const { number, message } = req.body;
-  const chatId = number.includes("@c.us") ? number : `${number}@c.us`;
+  const chatId = number.includes("@s.whatsapp.net")
+    ? number
+    : `${number}@s.whatsapp.net`;
 
   try {
-    await client.sendMessage(chatId, message);
+    await sock.sendMessage(chatId, { text: message });
     res.status(200).send("Mensaje enviado con éxito");
   } catch (error) {
+    console.error("Error enviando mensaje:", error);
     res.status(500).send("Error al enviar el mensaje");
   }
-});
-
-app.get("", (_req, res) => {
-  res.status(200).send("vivo");
 });
 
 app.listen(port, () => {
