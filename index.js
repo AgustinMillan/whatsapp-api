@@ -33,6 +33,10 @@ app.post("/send", async (req, res) => {
   }
 });
 
+app.get("", (_req, res) => {
+  res.status(200).send("vivo");
+});
+
 app.listen(port, () => {
   console.log(`API escuchando en http://localhost:${port}`);
 });
